@@ -297,7 +297,7 @@ unset MAJOR AUR SEARCH BUILD REFRESH SYSUPGRADE CLEAN \
       IGNOREGRP IGNOREPKG CHANGELOG LIST INFO RSORT SORT UNREQUIRED \
       FOREIGN GROUP QUERYTYPE QUIET DEPENDS PRINT \
       AURVOTEINSTALLED CUSTOMIZEPKGINSTALLED PACMAN_CMD \
-      NEEDED
+      NEEDED CACHE_DIR DOWNLOAD_ONLY_DIR
 
 # Disable color if output is not a terminal
 [[ -t 1 ]] || { ((USECOLOR!=2)) && USECOLOR=0; USEPAGER=0; TERMINALTITLE=0; }
@@ -358,14 +358,12 @@ while [[ $1 ]]; do
 		-u|--upgrades)      (( UPGRADES ++ )); program_arg $A_PQ $1;;
 		-V|--version)       version; exit 0;;
 		-v|--verbose)       program_arg $((A_PQ | A_PS)) $1;;
-		-w|--downloadonly)  PACMAN_CMD=1;;
 		-y|--refresh)       (( REFRESH ++ ));;
 
 		--asdeps)           program_arg $A_PS $1;;
 		--asexplicit)       program_arg $A_PS $1;;
 		--assume-installed) program_arg $A_PS $1 "$2"; shift;;
 		--arch)             program_arg $A_PC $1 "$2"; shift;;
-		--cachedir)         program_arg $A_PC $1 "$2"; shift;;
 		--changelog)        [[ ! $PACMAN_CMD ]] && PACMAN_CMD=0;;
 		--clean)            ((CLEAN++));;
 		--color)            USECOLOR=2;;
@@ -399,10 +397,12 @@ while [[ $1 ]]; do
 		-)                  break;; # support smth like echo package | yaourt -S -
 		-a|--aur)           AUR=1; AURUPGRADE=1; AURSEARCH=1;;
 		-b|--build)         ((BUILD++));;
+		-w|--downloadonly)  DOWNLOAD_ONLY="1"; CACHE_DIR="$2"; shift;;
 
 		--)                 shift; ARGS+=("$@"); break;;
 		--aur-url)          AURURL=$2; shift;;
 		--backupfile)       BACKUPFILE=$2; shift;;
+		--cachedir)         CACHE_DIR="$2"; shift;;
 		--conflicts)        QUERYTYPE=${1:2};;
 		--date)             SORT=1;;
 		--depends)          QUERYTYPE=${1:2};;
@@ -434,6 +434,8 @@ program_arg $A_PKC --aur-url "$AURURL"
 init_paths
 init_color
 [[ $PACMAN_CMD ]] && pacman_cmd $PACMAN_CMD
+
+[[ $CACHE_DIR ]] && program_arg $A_PC --cachedir "$CACHE_DIR"
 
 # No options
 [[ -z $MAJOR ]] && yaourt_no_action

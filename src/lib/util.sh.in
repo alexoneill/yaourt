@@ -168,6 +168,7 @@ init_paths() {
 	YAOURTTMPDIR="$TMPDIR/yaourt-tmp-$(id -un)"
 	mkdir -p "$YAOURTTMPDIR" || check_dir YAOURTTMPDIR || die 1
 	(( EXPORT )) && [[ $EXPORTDIR ]] && { check_dir EXPORTDIR || die 1; }
+	[[ "$CACHE_DIR" ]] && { check_dir CACHE_DIR || die 1; }
 	parse_pacman_conf
 }
 
