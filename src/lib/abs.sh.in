@@ -400,35 +400,53 @@ sync_packages() {
 	local _arg=("$@") _pkg repo pkg target
 	[[ $SP_ARG ]] && _arg=($(pacman_parse -T "${_arg[@]}"))
 	for _pkg in "${_arg[@]}"; do pkgs_search[$_pkg]=1; done
+
 	# Search for exact match, pkg which provides it, then in AUR
-	while read repo pkg target version; do
-		((pkgs_search[$target])) || continue
-		unset pkgs_search[$target]
-		((pkgs_found[$pkg])) && continue
-		pkgs_found[$pkg]=1
-		[[ $CACHE_DIR ]] &&
-		  [[ "$(ls "$CACHE_DIR" | grep "^${pkg}-${version}")" ]] &&
-		  pkgs_cached["${pkg}-${version}"]=1
-		if [[ "${repo}" != "aur" ]]; then
-			repo_pkgs+=("${repo}/${pkg}")
-		else
-			((NEEDED)) && pkgquery -Qqii "$target" && continue
-			aur_pkgs+=("$pkg")
-		fi
-	done < <(pkgquery -f "%r %n %t %v" -1SAii "${!pkgs_search[@]}")
+	local tmpfile=$(mktemp --tmpdir="$YAOURTTMPDIR")
+
+	pkgquery -f "%r %n %t %v" -1SAii "${!pkgs_search[@]}" 2>/dev/null >$tmpfile
+	[[ "$?" != "0" ]] && warning "no network connection" || \
+		while read repo pkg target version; do
+			((pkgs_search[$target])) || continue
+			unset pkgs_search[$target]
+			((pkgs_found[$pkg])) && continue
+			pkgs_found[$pkg]=1
+			[[ "$(ls "$CACHE_DIR" | grep "^${pkg}")" ]] && \
+				pkgs_cached["${pkg}"]="${version}"
+			if [[ "${repo}" != "aur" ]]; then
+				repo_pkgs+=("${repo}/${pkg}")
+			else
+				((NEEDED)) && pkgquery -Qqii "$target" && continue
+				aur_pkgs+=("$pkg")
+			fi
+		done < $tmpfile
 
 	# In case there is a double version check, eg. pkg1>0.1 pkg2<0.3
 	# package-query does only one check, so perform the remaining checks
+	cached_pkgs=()
 	for pkg in "${!pkgs_search[@]}"; do
 		_pkg=${pkg%%[<>=]*}
 		_cached="$(ls "$CACHE_DIR" | grep "^$_pkg")"
 		if [[ " ${!pkgs_found[@]} " =~ " $_pkg " ]]; then
 			pkgquery -q -1SAii "$pkg" && unset pkgs_search[$pkg]
 		elif [[ $_cached ]]; then
-			su_pacman -U "${PACMAN_S_ARG[@]}" "$CACHE_DIR/$_cached" &&
-				unset pkgs_search[$pkg] || return 1
+			cached_pkgs+=("$CACHE_DIR/$_cached") && unset pkgs_search[$pkg]
 		fi
 	done
+
+	# Install from cached packages
+	for _pkg in "${!pkgs_cached[@]}"; do
+		_cached="$(ls "$CACHE_DIR" | grep "^$_pkg")"
+		if [[ $_cached ]]; then
+			[[ "$_cached" = ${_pkg}-${pkgs_cached["$_pkg"]}* ]] &&
+				cached_pkgs+=("$CACHE_DIR/$_cached")
+		fi
+	done
+	(( ! DOWNLOAD_ONLY)) && for _pkg in "${cached_pkgs[@]}"; do
+		su_pacman -U "${PACMAN_S_ARG[@]}" "$_pkg" || \
+			manage_error "$_pkg" || return 1
+	done
+
 	bin_pkgs=("${!pkgs_search[@]}")
 	for _pkg in "${repo_pkgs[@]}"; do
 		install_from_abs "$_pkg" || return 1

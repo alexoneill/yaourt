@@ -2,7 +2,7 @@
 
 VERSION       = $(shell git describe --abbrev=4)
 DESTDIR       =
-PREFIX        = /usr/local
+PREFIX        = /home/aoneill/yaourt/build
 SHELL         = /bin/bash
 INSTALL       = /usr/bin/env install
 MSGFMT        = /usr/bin/msgfmt

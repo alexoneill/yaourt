@@ -397,7 +397,7 @@ while [[ $1 ]]; do
 		-)                  break;; # support smth like echo package | yaourt -S -
 		-a|--aur)           AUR=1; AURUPGRADE=1; AURSEARCH=1;;
 		-b|--build)         ((BUILD++));;
-		-w|--downloadonly)  DOWNLOAD_ONLY="1"; CACHE_DIR="$2"; shift;;
+		-w|--downloadonly)  DOWNLOAD_ONLY="1";;
 
 		--)                 shift; ARGS+=("$@"); break;;
 		--aur-url)          AURURL=$2; shift;;

@@ -282,6 +282,10 @@ build_package() {
 	# Build
 	SRCDEST="$YSRCDEST" PKGDEST="$YPKGDEST" y_makepkg -s -c -f -p ./PKGBUILD
 
+	# Cache it
+	msg $(_gettext 'Caching locally: %s %s-%s' "$pkgbase" "$pkgver" "$pkgrel")
+	cp -uv "$YPKGDEST/"*.pkg.* "$CACHE_DIR" || failed=1
+
 	if (( $? )); then
 		error $(_gettext 'Makepkg was unable to build %s.' "$pkgbase")
 		return 1
@@ -408,7 +412,6 @@ package_loop() {
 	    { install_package || failed=1; }
 
 	[[ $MAJOR == "pkgbuild" ]] && (( ! INSTALL )) && cp -v "$YPKGDEST/"*.pkg.* $YPKGBUILDDIR
-	(( DOWNLOAD_ONLY )) && cp -uv "$YPKGDEST/"*.pkg.* "$CACHE_DIR" || failed=1
 
 	rm -r "$YPKGDEST"
 	return $failed
