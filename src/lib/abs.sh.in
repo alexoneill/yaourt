@@ -395,8 +395,8 @@ sync_packages() {
 	fi
 	[[ $1 ]] || return 0
 	# Install from arguments
-	declare -A pkgs_search pkgs_found pkgs_cached
-	declare -a repo_pkgs aur_pkgs bin_pkgs
+	declare -A pkgs_search pkgs_found pkgs_cached repo_pkgs aur_pkgs cached_pkgs
+	declare -a bin_pkgs
 	local _arg=("$@") _pkg repo pkg target
 	[[ $SP_ARG ]] && _arg=($(pacman_parse -T "${_arg[@]}"))
 	for _pkg in "${_arg[@]}"; do pkgs_search[$_pkg]=1; done
@@ -405,45 +405,46 @@ sync_packages() {
 	local tmpfile=$(mktemp --tmpdir="$YAOURTTMPDIR")
 
 	pkgquery -f "%r %n %t %v" -1SAii "${!pkgs_search[@]}" 2>/dev/null >$tmpfile
-	[[ "$?" != "0" ]] && warning "no network connection" || \
+	[[ "$?" != "0" ]] && warning "no network connection" ||
 		while read repo pkg target version; do
 			((pkgs_search[$target])) || continue
 			unset pkgs_search[$target]
 			((pkgs_found[$pkg])) && continue
 			pkgs_found[$pkg]=1
-			[[ "$(ls "$CACHE_DIR" | grep "^${pkg}")" ]] && \
+			[[ "$(ls "$CACHE_DIR" | grep "^${pkg}")" ]] &&
 				pkgs_cached["${pkg}"]="${version}"
 			if [[ "${repo}" != "aur" ]]; then
-				repo_pkgs+=("${repo}/${pkg}")
+				repo_pkgs[$pkg]="${repo}/${pkg}"
 			else
 				((NEEDED)) && pkgquery -Qqii "$target" && continue
-				aur_pkgs+=("$pkg")
+				aur_pkgs[$pkg]=1
 			fi
 		done < $tmpfile
 
 	# In case there is a double version check, eg. pkg1>0.1 pkg2<0.3
 	# package-query does only one check, so perform the remaining checks
-	cached_pkgs=()
 	for pkg in "${!pkgs_search[@]}"; do
-		_pkg=${pkg%%[<>=]*}
-		_cached="$(ls "$CACHE_DIR" | grep "^$_pkg")"
+		local _pkg=${pkg%%[<>=]*}
+		local _cached="$(ls "$CACHE_DIR" | grep "^$_pkg")"
 		if [[ " ${!pkgs_found[@]} " =~ " $_pkg " ]]; then
 			pkgquery -q -1SAii "$pkg" && unset pkgs_search[$pkg]
 		elif [[ $_cached ]]; then
-			cached_pkgs+=("$CACHE_DIR/$_cached") && unset pkgs_search[$pkg]
+			cached_pkgs[$_pkg]="$CACHE_DIR/$_cached" && unset pkgs_search[$pkg]
 		fi
 	done
 
 	# Install from cached packages
 	for _pkg in "${!pkgs_cached[@]}"; do
-		_cached="$(ls "$CACHE_DIR" | grep "^$_pkg")"
+		local _cached="$(ls "$CACHE_DIR" | grep "^$_pkg")"
 		if [[ $_cached ]]; then
 			[[ "$_cached" = ${_pkg}-${pkgs_cached["$_pkg"]}* ]] &&
-				cached_pkgs+=("$CACHE_DIR/$_cached")
+				cached_pkgs[$_pkg]="$CACHE_DIR/$_cached"
 		fi
 	done
-	(( ! DOWNLOAD_ONLY)) && for _pkg in "${cached_pkgs[@]}"; do
-		su_pacman -U "${PACMAN_S_ARG[@]}" "$_pkg" || \
+	(( ! DOWNLOAD_ONLY)) && for _pkg in "${!cached_pkgs[@]}"; do
+	    local _file="${cached_pkgs[$_pkg]}"
+		su_pacman -U "${PACMAN_S_ARG[@]}" "$_file" && 
+			unset aur_pkgs[$_pkg] && unset repo_pkgs[$_pkg] ||
 			manage_error "$_pkg" || return 1
 	done
 
@@ -458,7 +459,7 @@ sync_packages() {
 			su_pacman -S "${PACMAN_S_ARG[@]}" "${bin_pkgs[@]}" || return 1
 		fi
 	fi
-	for _pkg in "${aur_pkgs[@]}"; do
+	for _pkg in "${!aur_pkgs[@]}"; do
 		install_from_aur "$_pkg" || return 1
 	done
 	return 0
