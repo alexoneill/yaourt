@@ -265,7 +265,7 @@ build_package() {
 	# install deps from abs (build or download) as depends
 	if [[ $PKGBUILD_DEPS ]]; then
 		msg $(_gettext 'Install or build missing dependencies for %s:' "$pkgbase")
-		if ! SP_ARG="--asdeps" INSTALL=1 sync_packages "${PKGBUILD_DEPS[@]}"; then
+		if ! SP_ARG="--asdeps" INSTALL_FLAG=1 sync_packages "${PKGBUILD_DEPS[@]}"; then
 			local _deps_left=( $(pacman_parse -T "${PKGBUILD_DEPS[@]}") )
 			local _deps_installed=()
 			for _deps in "${PKGBUILD_DEPS[@]}"; do
@@ -408,10 +408,10 @@ package_loop() {
 		esac
 	done
 	(( ! ret )) && (( ! failed )) && (( ! DOWNLOAD_ONLY )) &&
-	  ( [[ $MAJOR == "pkgbuild" ]] && (( INSTALL )) || ! [[ $MAJOR == "pkgbuild" ]] ) &&
+	  ( [[ $MAJOR == "pkgbuild" ]] && (( INSTALL_FLAG )) || ! [[ $MAJOR == "pkgbuild" ]] ) &&
 	    { install_package || failed=1; }
 
-	[[ $MAJOR == "pkgbuild" ]] && (( ! INSTALL )) && cp -v "$YPKGDEST/"*.pkg.* $YPKGBUILDDIR
+	[[ $MAJOR == "pkgbuild" ]] && (( ! INSTALL_FLAG )) && cp -v "$YPKGDEST/"*.pkg.* $YPKGBUILDDIR
 
 	rm -r "$YPKGDEST"
 	return $failed
@@ -495,7 +495,7 @@ get_pkgbuild() {
 
 
 # Call package_pkgbuild_only for building a PKGBUILD in the current directory
-# until success or abort. On success, call install_package, if INSTALL was
+# until success or abort. On success, call install_package, if INSTALL_FLAG was
 # specified with -i
 # Usage: package_pkgbuild_only ($pkgname)
 #   $pkgname: name of package
@@ -508,11 +508,12 @@ package_pkgbuild_only() {
 
 	# Glob files from YPKGBUILDDIR and copy them to $YTMPDIR
 	local YFILES=("$YPKGBUILDDIR/PKGBUILD")
-	YFILES+=($(find "$YPKGBUILDDIR/"*.install -type f 2>/dev/null))
-	YFILES+=($(find "$YPKGBUILDDIR/"*.patch   -type f 2>/dev/null))
+	for file in "$YPKGBUILDDIR/"*.{install,patch}; do
+		[[ -f $file ]] && YFILES+=("$file")
+	done
 
 	msg $(_gettext "Copying files from %s to build directory..." "$YPKGBUILDDIR")
-	cp -v ${YFILES[@]} "$YTMPDIR"
+	cp -v "${YFILES[@]}" "$YTMPDIR"
 	echo
 
 	package_loop "$YPKG" 1 || manage_error "$YPKG" ||

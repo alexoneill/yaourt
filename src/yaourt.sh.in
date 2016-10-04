@@ -180,9 +180,15 @@ yaourt_sync() {
 # Handle -U,--upgrade
 yaourt_upgrade () {
 	[[ $ARGS ]] || pacman_cmd 2
-	local depends=( $(pkgquery -Qpif '%D' "${ARGS[@]}") )
-	[[ $depends == "-" ]] && depends=""
-	depends=( $(pacman_parse -T "${depends[@]}") )
+
+	# Handle package(s) dependencies only if -d is specified less than
+	# twice on the command line
+	if ((DEPENDS < 2)); then
+	    local depends=( $(pkgquery -Qpif '%D' "${ARGS[@]}") )
+	    [[ $depends == "-" ]] && depends=""
+	    depends=( $(pacman_parse -T "${depends[@]}") )
+	fi
+
 	if [[ $depends ]]; then
 		load_lib abs aur
 		SP_ARG="--asdeps" sync_packages "${depends[@]}"
@@ -345,7 +351,7 @@ while [[ $1 ]]; do
 		-e|--explicit)      program_arg $A_PQ $1;;
 		-g|--groups)        GROUP=1; program_arg $A_PQ $1;;
 		-h|--help)          usage; exit 0;;
-		-i)                 [[ $MAJOR = "pkgbuild" ]] && INSTALL=1 || { INFO=1; program_arg $((A_PQ | A_PS)) $1; };;
+		-i)                 [[ $MAJOR = "pkgbuild" ]] && INSTALL_FLAG=1 || { INFO=1; program_arg $((A_PQ | A_PS)) $1; };;
 		-k|--check)         [[ ! $PACMAN_CMD ]] && PACMAN_CMD=0;;
 		-l|--list)          LIST=1; program_arg $A_PQ $1;;
 		-m|--foreign)       FOREIGN=1; program_arg $A_PQ $1;;
@@ -384,7 +390,7 @@ while [[ $1 ]]; do
 		--confirm)          NOCONFIRM=0;;
 		--edit)             EDITFILES=1;;
 		--nodeps)           program_arg $((A_PS | A_M)) $1;;
-		--noprogressbar)    program_arg $A_PC $1;;
+		--noprogressbar)    program_arg $((A_PS | A_PU)) $1; HIDEPROGRESS=1;;
 		--noscriptlet)      program_arg $A_PC $1;;
 		--print-format)     ((PRINT++));; # --print-format needs --print
 		--sysupgrade)       SYSUPGRADE=1; (( UPGRADES ++ ));;
@@ -409,7 +415,7 @@ while [[ $1 ]]; do
 		--devel)            DEVEL=1;;
 		--export)           EXPORT=1; EXPORTSRC=1; shift; EXPORTDIR="$1";;
 		--insecure)         program_arg $((A_PKC | A_CC)) $1;;
-		--install)          INSTALL=1;;
+		--install)          INSTALL_FLAG=1;;
 		--m-arg)            program_arg $A_M "$2"; shift;;
 		--maintainer)       program_arg $A_PQ $1;;
 		--nameonly)         program_arg $A_PQ $1;;
